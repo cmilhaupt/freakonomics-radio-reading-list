@@ -2,6 +2,7 @@
 
 import argparse
 import urllib3
+from urllib.parse import urlparse
 from bs4 import BeautifulSoup as bs
 
 FREAKONOMICS_ARCHIVE_URL = 'http://freakonomics.com/archive/'
@@ -17,35 +18,18 @@ def get_links(r):
 def get_books(link):
     book_list = {}
 
-    try: 
-        r = http.request('GET', link)
-        soup = bs(r.data, 'html.parser')
-        divs = soup.find_all('div', attrs={'style': 'background-color: #eaeaea; padding: 10px;'})
-        div = divs[0]
+    r = http.request('GET', link)
+    soup = bs(r.data, 'html.parser')
+    podcast_intro = soup.find_all('div', attrs={'class': 'podcast_intro'})
+    ll_links = podcast_intro[0].find_all('a')
         
-        ul_extra = div.find(text='EXTRA')
-        ul_resources = div.find(text='RESOURCES')
+    for link in ll_links:
+        if 'amazon' in link['href']:
+            o = urlparse(link['href'])
+            book_list[o.path.split('/')[3]] = link
     
-        if ul_extra is None and ul_resources is None:
-            return
-            
-        if ul_extra is not None:
-            ul_extra = ul_extra.parent.parent.next_sibling.next_sibling
-            li_extra = ul_extra.find_all('li')
-            for li in li_extra:
-                if 'Freakonomics Radio' not in li.text:
-                    book_list[li.text] = li
-    
-        if ul_resources is not None:
-            ul_resources = ul_resources.parent.parent.next_sibling.next_sibling
-            li_resources = ul_resources.find_all('li')
-            for li in li_resources:
-                if 'Freakonomics Radio' not in li.text:
-                    book_list[li.text] = li
-    except:
-        print("ERROR: unexpected css configuration for page {0}; skipping"
-            .format(link))
-
+    for key in book_list.keys():
+        print(key)    
     return book_list        
 
 def main(http):
@@ -102,12 +86,13 @@ def main(http):
     links = get_links(r)
     for link in links:
         books = get_books(link)
+        break
         if books is not None:
             print(books.keys())
             book_list.update(get_books(link))
 
     f = open('docs/index.html', 'w+')
-    for _, value in book_list:
+    for _, value in book_list.values():
         f.write(value)
         f.write('\n')
     f.close()
